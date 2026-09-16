@@ -1,1 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Block Drop</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap');
+  :root{
+    --bg:#181425; --panel:#241f38; --line:#3a3357;
+    --i:#4fd6ff; --o:#ffd166; --t:#c77dff; --s:#06d6a0; --z:#ef476f; --j:#4f8cff; --l:#ff9f4f;
+    --text:#f1eefc; --dim:#8b83ad;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);overflow:hidden;}
+  .wrap{max-width:460px;margin:0 auto;padding:20px 16px 30px;text-align:center;}
+  h1{font-family:'Press Start 2P',monospace;font-size:clamp(1rem,5vw,1.3rem);margin:0 0 4px;color:var(--i);letter-spacing:1px;}
+  .tagline{margin:0 0 14px;font-size:0.82rem;color:var(--dim);}
+  .layout{display:flex;justify-content:center;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+  .stage{position:relative;border-radius:10px;overflow:hidden;border:2px solid var(--line);background:var(--panel);}
+  canvas{display:block;touch-action:none;}
+  .side{display:flex;flex-direction:column;gap:10px;width:110px;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:left;}
+  .stat .label{font-size:0.6rem;color:var(--dim);letter-spacing:0.5px;}
+  .stat .value{font-family:'Press Start 2P',monospace;font-size:1rem;color:var(--i);margin-top:2px;}
+  #next-canvas{background:var(--panel);border:1px solid var(--line);border-radius:10px;}
+  .overlay{position:absolute;inset:0;background:rgba(24,20,37,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-family:'Press Start 2P',monospace;font-size:1rem;margin:0;color:var(--z);}
+  .overlay p{margin:0;font-size:0.8rem;color:var(--dim);max-width:220px;line-height:1.4;}
+  #go-btn{font-family:'Press Start 2P',monospace;font-size:0.75rem;color:#181425;background:var(--i);border:none;border-radius:8px;padding:12px 20px;cursor:pointer;margin-top:4px;}
+  .controls{margin-top:14px;font-size:0.78rem;color:var(--dim);}
+  .touch-controls{display:none;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;max-width:340px;margin-left:auto;margin-right:auto;}
+  .touch-controls button{border:none;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--text);padding:12px 0;font-size:1.1rem;}
+  @media(pointer:coarse){.touch-controls{display:grid;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BLOCK DROP</h1>
+  <p class="tagline">Stack the falling pieces. Clear full rows before they reach the top.</p>
+  <div class="layout">
+    <div class="stage">
+      <canvas id="game" width="240" height="480"></canvas>
+      <div class="overlay" id="overlay">
+        <h2 id="overlay-title">Ready?</h2>
+        <p id="overlay-text">Arrows to move/rotate, down to drop faster, space to hard-drop. Clear rows for points — speed increases as you level up.</p>
+        <button id="go-btn">Start</button>
+      </div>
+    </div>
+    <div class="side">
+      <div class="stat"><div class="label">SCORE</div><div class="value" id="score-val">0</div></div>
+      <div class="stat"><div class="label">LEVEL</div><div class="value" id="level-val">1</div></div>
+      <div class="stat"><div class="label">BEST</div><div class="value" id="best-val">0</div></div>
+      <div class="stat"><div class="label">NEXT</div><canvas id="next-canvas" width="90" height="70"></canvas></div>
+    </div>
+  </div>
+  <p class="controls">← → move · ↑ rotate · ↓ soft drop · space hard drop</p>
+  <div class="touch-controls">
+    <button id="tc-left">◀</button><button id="tc-rot">⟳</button><button id="tc-right">▶</button><button id="tc-down">▼</button>
+  </div>
+</div>
 
+<script>
+  const COLS=10, ROWS=20, CELL=24;
+  const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
+  const nextCanvas=document.getElementById('next-canvas'), nctx=nextCanvas.getContext('2d');
+  const scoreVal=document.getElementById('score-val'), levelVal=document.getElementById('level-val'), bestVal=document.getElementById('best-val');
+  const overlay=document.getElementById('overlay'), overlayTitle=document.getElementById('overlay-title'), overlayText=document.getElementById('overlay-text'), goBtn=document.getElementById('go-btn');
+
+  const SHAPES={
+    I:{c:'var(--i)',hex:'#4fd6ff',cells:[[0,1],[1,1],[2,1],[3,1]]},
+    O:{c:'var(--o)',hex:'#ffd166',cells:[[1,0],[2,0],[1,1],[2,1]]},
+    T:{c:'var(--t)',hex:'#c77dff',cells:[[1,0],[0,1],[1,1],[2,1]]},
+    S:{c:'var(--s)',hex:'#06d6a0',cells:[[1,0],[2,0],[0,1],[1,1]]},
+    Z:{c:'var(--z)',hex:'#ef476f',cells:[[0,0],[1,0],[1,1],[2,1]]},
+    J:{c:'var(--j)',hex:'#4f8cff',cells:[[0,0],[0,1],[1,1],[2,1]]},
+    L:{c:'var(--l)',hex:'#ff9f4f',cells:[[2,0],[0,1],[1,1],[2,1]]}
+  };
+  const KEYS=Object.keys(SHAPES);
+
+  let grid, current, next, score, level, linesCleared, best=0, running, dropTimer, dropInterval, lastTime, rafId;
+
+  function newGrid(){ return Array.from({length:ROWS},()=>Array(COLS).fill(null)); }
+
+  function randPiece(){
+    const k = KEYS[Math.floor(Math.random()*KEYS.length)];
+    return { key:k, cells: SHAPES[k].cells.map(c=>[...c]), x:3, y:0, hex: SHAPES[k].hex };
+  }
+
+  function rotate(piece){
+    const cx = piece.cells.reduce((a,c)=>a+c[0],0)/piece.cells.length;
+    const cy = piece.cells.reduce((a,c)=>a+c[1],0)/piece.cells.length;
+    const rotated = piece.cells.map(([x,y])=>{
+      const rx = cx + (y-cy);
+      const ry = cy - (x-cx);
+      return [Math.round(rx), Math.round(ry)];
+    });
+    return { ...piece, cells: rotated };
+  }
+
+  function collides(piece, ox=0, oy=0){
+    return piece.cells.some(([x,y])=>{
+      const gx = piece.x+x+ox, gy = piece.y+y+oy;
+      if(gx<0||gx>=COLS||gy>=ROWS) return true;
+      if(gy>=0 && grid[gy][gx]) return true;
+      return false;
+    });
+  }
+
+  function lockPiece(){
+    current.cells.forEach(([x,y])=>{
+      const gx=current.x+x, gy=current.y+y;
+      if(gy>=0) grid[gy][gx]=current.hex;
+    });
+    clearLines();
+    current=next; next=randPiece();
+    if(collides(current)){ endGame(); }
+  }
+
+  function clearLines(){
+    let cleared=0;
+    for(let y=ROWS-1;y>=0;y--){
+      if(grid[y].every(c=>c)){
+        grid.splice(y,1);
+        grid.unshift(Array(COLS).fill(null));
+        cleared++; y++;
+      }
+    }
+    if(cleared>0){
+      const points=[0,100,300,500,800][cleared]*level;
+      score+=points;
+      linesCleared+=cleared;
+      level = 1+Math.floor(linesCleared/8);
+      dropInterval = Math.max(120, 700 - (level-1)*55);
+      scoreVal.textContent=score;
+      levelVal.textContent=level;
+    }
+  }
+
+  function hardDrop(){
+    let dist=0;
+    while(!collides(current,0,dist+1)) dist++;
+    current.y+=dist;
+    score += dist*2;
+    scoreVal.textContent=score;
+    lockPiece();
+    render();
+  }
+
+  function move(dx){
+    if(!collides(current,dx,0)) current.x+=dx;
+  }
+
+  function softDrop(){
+    if(!collides(current,0,1)){ current.y++; score++; scoreVal.textContent=score; }
+    else lockPiece();
+  }
+
+  function doRotate(){
+    const r = rotate(current);
+    for(const kick of [0,-1,1,-2,2]){
+      if(!collides({...r, x:r.x}, kick, 0)){ current.cells=r.cells; current.x+=kick; return; }
+    }
+  }
+
+  function drawCell(c, x, y, hex, ctxx=ctx, cell=CELL){
+    ctxx.fillStyle=hex;
+    ctxx.fillRect(x*cell+1, y*cell+1, cell-2, cell-2);
+    ctxx.fillStyle='rgba(255,255,255,0.18)';
+    ctxx.fillRect(x*cell+1, y*cell+1, cell-2, 4);
+  }
+
+  function render(){
+    ctx.fillStyle='#241f38';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(grid[y][x]) drawCell(ctx,x,y,grid[y][x]);
+    if(current){
+      current.cells.forEach(([x,y])=>{
+        const gy=current.y+y;
+        if(gy>=0) drawCell(ctx,current.x+x,gy,current.hex);
+      });
+    }
+    ctx.strokeStyle='rgba(255,255,255,0.04)';
+    for(let x=0;x<=COLS;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,ROWS*CELL); ctx.stroke(); }
+
+    nctx.fillStyle='#241f38';
+    nctx.clearRect(0,0,90,70);
+    nctx.fillRect(0,0,90,70);
+    if(next){
+      const cell=16;
+      next.cells.forEach(([x,y])=>drawCell(nctx, x, y, next.hex, nctx, cell));
+    }
+  }
+
+  function loop(now){
+    if(!running) return;
+    const dt = now-lastTime; lastTime=now;
+    dropTimer += dt;
+    if(dropTimer > dropInterval){
+      dropTimer = 0;
+      if(!collides(current,0,1)) current.y++;
+      else lockPiece();
+    }
+    render();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running=false;
+    cancelAnimationFrame(rafId);
+    if(score>best){ best=score; bestVal.textContent=best; overlayTitle.textContent='New best!'; }
+    else overlayTitle.textContent='Topped out!';
+    overlayText.textContent=`Score: ${score} · Level ${level}`;
+    goBtn.textContent='Play again';
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    grid=newGrid(); score=0; level=1; linesCleared=0; dropInterval=700; dropTimer=0;
+    current=randPiece(); next=randPiece();
+    scoreVal.textContent=0; levelVal.textContent=1;
+    overlay.classList.add('hidden');
+    running=true; lastTime=performance.now();
+    rafId=requestAnimationFrame(loop);
+  }
+
+  goBtn.addEventListener('click', startGame);
+  window.addEventListener('keydown',(e)=>{
+    if(!running) return;
+    if(['ArrowLeft','ArrowRight','ArrowDown','ArrowUp',' '].includes(e.key)) e.preventDefault();
+    if(e.key==='ArrowLeft') move(-1);
+    else if(e.key==='ArrowRight') move(1);
+    else if(e.key==='ArrowDown') softDrop();
+    else if(e.key==='ArrowUp') doRotate();
+    else if(e.key===' ') hardDrop();
+    render();
+  });
+  document.getElementById('tc-left').addEventListener('click',()=>{move(-1);render();});
+  document.getElementById('tc-right').addEventListener('click',()=>{move(1);render();});
+  document.getElementById('tc-down').addEventListener('click',()=>{softDrop();render();});
+  document.getElementById('tc-rot').addEventListener('click',()=>{doRotate();render();});
+
+  grid=newGrid(); current=randPiece(); next=randPiece(); render();
+</script>
+</body>
+</html>
