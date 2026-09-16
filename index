@@ -130,70 +130,70 @@
   </header>
 
   <div class="grid">
-    <a class="card" href="https://claude.ai/artifact/PgW8V86GjkoXHTLeBq2iu3" target="_blank" rel="noopener">
+    <a class="card" href="riftrunner.html">
       <span class="tag">Reflex</span>
       <h2>Riftrunner</h2>
       <p>Dodge falling shards that speed up nonstop. Chain near-misses for combo points.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/QD16oD2ne3QZjhPCuQvk2i" target="_blank" rel="noopener">
+    <a class="card" href="canyon-sprint.html">
       <span class="tag">Reflex</span>
       <h2>Canyon Sprint</h2>
       <p>Endless runner — jump and double-jump over rocks and gaps as the pace ramps up.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/BnTHYx8NUMToSRYitx8Qz1" target="_blank" rel="noopener">
+    <a class="card" href="colorburst.html">
       <span class="tag">Reflex</span>
       <h2>Colorburst</h2>
       <p>Stroop-effect speed test — tap the ink color, not the word, before the timer runs out.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/6ZHkzRcefcNY9WwtBoxmp5" target="_blank" rel="noopener">
+    <a class="card" href="pulse-line.html">
       <span class="tag">Rhythm</span>
       <h2>Pulse Line</h2>
       <p>Hit D / F / J right as notes cross the line. Tempo increases, timing gets tighter.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/RNUm68uadHW1yyfDjUuUVW" target="_blank" rel="noopener">
+    <a class="card" href="flappy-finch.html">
       <span class="tag">Classic</span>
       <h2>Flappy Finch</h2>
       <p>Tap to flap and thread the gaps between hedges. One clip ends the run.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/URzxWeB2e7G3YroZ6nrMF1" target="_blank" rel="noopener">
+    <a class="card" href="block-drop.html">
       <span class="tag">Classic</span>
       <h2>Block Drop</h2>
       <p>Stack falling pieces, clear full rows, survive the speed increases as you level up.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/FQcFAoS2HTFgjQ9yvF7h49" target="_blank" rel="noopener">
+    <a class="card" href="merge-2048.html">
       <span class="tag">Classic</span>
       <h2>Merge Drift</h2>
       <p>Slide tiles together to merge matching numbers. Reach 2048 to win.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/8frPJwPgXDoUU8ymzaZiqA" target="_blank" rel="noopener">
+    <a class="card" href="brick-breaker.html">
       <span class="tag">Classic</span>
       <h2>Brick Breaker</h2>
       <p>Bounce the ball off your paddle to smash every brick before you run out of lives.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/EoiZMqwzN39WRdFHbjC635" target="_blank" rel="noopener">
+    <a class="card" href="maze-muncher.html">
       <span class="tag">Classic</span>
       <h2>Maze Muncher</h2>
       <p>Eat every dot in the maze while three ghosts hunt you. Power orbs turn the tables.</p>
       <span class="play">Play</span>
     </a>
 
-    <a class="card" href="https://claude.ai/artifact/XnH8uqY2YcHHXJvwoTWqvg" target="_blank" rel="noopener">
+    <a class="card" href="pong-duel.html">
       <span class="tag">Classic</span>
       <h2>Pong Duel</h2>
       <p>First to 7 points against an AI that gets sharper the longer the rally runs.</p>
@@ -201,7 +201,7 @@
     </a>
   </div>
 
-  <footer>Click any card to open that game in its own live page.</footer>
+  <footer>Open any card to play — all games run locally in your browser.</footer>
 </div>
 
 </body>
