@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Riftrunner</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+  :root{
+    --bg-deep: #1a0f2e;
+    --bg-mid: #2d1b4e;
+    --lane-line: #4a3070;
+    --hazard: #ff4d6d;
+    --hazard-glow: #ff8fa3;
+    --player: #ffb84d;
+    --shield: #4ecdc4;
+    --text-main: #f4ecff;
+    --text-dim: #9d8bc4;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    height: 100%;
+    background: linear-gradient(180deg, #150a26 0%, var(--bg-deep) 40%, #241040 100%);
+    font-family: 'Space Grotesk', sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+  }
+
+  .wrap{
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 22px 16px 30px;
+    text-align: center;
+  }
+
+  h1{
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.8rem, 7vw, 2.3rem);
+    margin: 0 0 2px;
+    letter-spacing: 1px;
+    color: var(--player);
+  }
+
+  .tagline{
+    margin: 0 0 14px;
+    font-size: 0.88rem;
+    color: var(--text-dim);
+  }
+
+  .hud{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stat{
+    background: rgba(45,27,78,0.7);
+    border: 1px solid var(--lane-line);
+    border-radius: 10px;
+    padding: 7px 16px;
+    min-width: 76px;
+  }
+
+  .stat .label{
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+
+  .stat .value{
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+
+  #score-val{ color: var(--hazard-glow); }
+  #combo-val{ color: var(--shield); }
+  #best-val{ color: var(--player); }
+
+  .stage{
+    position: relative;
+    display: inline-block;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid var(--lane-line);
+    box-shadow: 0 0 30px rgba(78,205,196,0.08), 0 10px 24px rgba(0,0,0,0.4);
+  }
+
+  canvas{
+    display: block;
+    background: var(--bg-mid);
+    touch-action: none;
+  }
+
+  .overlay{
+    position: absolute;
+    inset: 0;
+    background: rgba(21,10,38,0.85);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .overlay.hidden{ display: none; }
+
+  .overlay h2{
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    margin: 0;
+    color: var(--hazard-glow);
+  }
+
+  .overlay p{
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    max-width: 260px;
+    line-height: 1.4;
+  }
+
+  #go-btn{
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.5px;
+    color: #1a0f2e;
+    background: var(--player);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #c9862c;
+    transition: transform 0.08s ease;
+  }
+
+  #go-btn:active{
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #c9862c;
+  }
+
+  .controls-hint{
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>RIFTRUNNER</h1>
+  <p class="tagline">Shards fall faster every second. Weave through the gaps, chain near-misses for combo points.</p>
+
+  <div class="hud">
+    <div class="stat">
+      <div class="label">SCORE</div>
+      <div class="value" id="score-val">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">COMBO</div>
+      <div class="value" id="combo-val">×1</div>
+    </div>
+    <div class="stat">
+      <div class="label">BEST</div>
+      <div class="value" id="best-val">0</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="380" height="440"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="overlay-title">Ready to run?</h2>
+      <p id="overlay-text">Drag / arrow keys to move sideways. Dodge the falling shards — grazing one closely (without touching) builds your combo. One hit ends the run. Grab teal shield orbs for one free hit.</p>
+      <button id="go-btn">Start run</button>
+    </div>
+  </div>
+
+  <p class="controls-hint">← → arrow keys, A/D, or drag with your finger/mouse</p>
+</div>
+
+<script>
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const scoreVal = document.getElementById('score-val');
+  const comboVal = document.getElementById('combo-val');
+  const bestVal = document.getElementById('best-val');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const goBtn = document.getElementById('go-btn');
+
+  let best = 0;
+  let running = false;
+  let rafId = null;
+
+  let player, hazards, orbs, particles, score, combo, elapsed, spawnTimer, difficulty, shielded, shakeTime, lastTime;
+
+  function resetState(){
+    player = { x: W/2, y: H - 46, w: 30, h: 30, targetX: W/2 };
+    hazards = [];
+    orbs = [];
+    particles = [];
+    score = 0;
+    combo = 1;
+    elapsed = 0;
+    spawnTimer = 0;
+    difficulty = 1;
+    shielded = false;
+    shakeTime = 0;
+    lastTime = performance.now();
+    scoreVal.textContent = 0;
+    comboVal.textContent = '×1';
+  }
+
+  function spawnHazard(){
+    const w = 26 + Math.random()*30;
+    const x = Math.random() * (W - w);
+    const speed = (2.4 + difficulty * 0.55) * (0.85 + Math.random()*0.3);
+    hazards.push({ x, y: -40, w, h: w*0.8, speed, grazed: false, rot: Math.random()*Math.PI, rotSpeed: (Math.random()-0.5)*0.15 });
+  }
+
+  function maybeSpawnOrb(){
+    if(Math.random() < 0.012){
+      const x = 20 + Math.random()*(W-40);
+      orbs.push({ x, y: -30, r: 12, speed: 2.6 });
+    }
+  }
+
+  function spawnParticles(x, y, color, count){
+    for(let i=0;i<count;i++){
+      particles.push({
+        x, y,
+        vx: (Math.random()-0.5)*5,
+        vy: (Math.random()-0.5)*5 - 1,
+        life: 1,
+        color
+      });
+    }
+  }
+
+  function update(dt){
+    elapsed += dt;
+    difficulty = 1 + elapsed / 9000;
+
+    // player follows target smoothly
+    player.x += (player.targetX - player.x) * Math.min(1, dt/70);
+    player.x = Math.max(player.w/2, Math.min(W - player.w/2, player.x));
+
+    spawnTimer -= dt;
+    const spawnInterval = Math.max(260, 700 - difficulty*90);
+    if(spawnTimer <= 0){
+      spawnHazard();
+      spawnTimer = spawnInterval;
+    }
+    maybeSpawnOrb();
+
+    // update hazards
+    for(let i = hazards.length - 1; i >= 0; i--){
+      const h = hazards[i];
+      h.y += h.speed * (dt/16.7);
+      h.rot += h.rotSpeed;
+
+      const px = player.x - player.w/2, py = player.y - player.h/2;
+      const hx = h.x, hy = h.y - h.h/2;
+
+      const overlap = px < hx + h.w && px + player.w > hx && py < hy + h.h && py + player.h > hy;
+
+      if(overlap){
+        if(shielded){
+          shielded = false;
+          spawnParticles(player.x, player.y, '#4ecdc4', 18);
+          hazards.splice(i,1);
+          shakeTime = 200;
+          continue;
+        } else {
+          endGame();
+          return;
+        }
+      }
+
+      // near miss / graze detection for combo
+      if(!h.grazed && h.y > player.y - 60 && h.y < player.y + 40){
+        const dx = Math.abs((h.x + h.w/2) - player.x);
+        if(dx < player.w/2 + h.w/2 + 16){
+          h.grazed = true;
+          combo += 1;
+          score += 2 * combo;
+          comboVal.textContent = '×' + combo;
+          spawnParticles(h.x + h.w/2, h.y, '#ff8fa3', 6);
+        }
+      }
+
+      if(h.y - h.h > H){
+        hazards.splice(i,1);
+        score += 1;
+      }
+    }
+
+    // update orbs
+    for(let i = orbs.length - 1; i >= 0; i--){
+      const o = orbs[i];
+      o.y += o.speed * (dt/16.7);
+      const dx = o.x - player.x, dy = o.y - player.y;
+      if(Math.sqrt(dx*dx+dy*dy) < o.r + player.w/2){
+        shielded = true;
+        spawnParticles(o.x, o.y, '#4ecdc4', 14);
+        orbs.splice(i,1);
+        continue;
+      }
+      if(o.y - o.r > H) orbs.splice(i,1);
+    }
+
+    // particles
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+      if(p.life <= 0) particles.splice(i,1);
+    }
+
+    // passive score
+    score += dt * 0.006 * combo;
+    scoreVal.textContent = Math.floor(score);
+
+    if(shakeTime > 0) shakeTime -= dt;
+  }
+
+  function drawBackdrop(){
+    ctx.fillStyle = '#2d1b4e';
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    for(let x = 40; x < W; x += 40){
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+  }
+
+  function drawPlayer(){
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.fillStyle = shielded ? '#4ecdc4' : '#ffb84d';
+    ctx.shadowColor = shielded ? '#4ecdc4' : '#ffb84d';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.moveTo(0, -player.h/2);
+    ctx.lineTo(player.w/2, player.h/2);
+    ctx.lineTo(-player.w/2, player.h/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHazards(){
+    hazards.forEach(h => {
+      ctx.save();
+      ctx.translate(h.x + h.w/2, h.y);
+      ctx.rotate(h.rot);
+      ctx.fillStyle = h.grazed ? '#ff8fa3' : '#ff4d6d';
+      ctx.shadowColor = '#ff4d6d';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      const s = h.w/2;
+      ctx.moveTo(0,-s); ctx.lineTo(s*0.7, -s*0.2); ctx.lineTo(s, s*0.6);
+      ctx.lineTo(0, s); ctx.lineTo(-s, s*0.6); ctx.lineTo(-s*0.7, -s*0.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function drawOrbs(){
+    orbs.forEach(o => {
+      ctx.save();
+      ctx.fillStyle = '#4ecdc4';
+      ctx.shadowColor = '#4ecdc4';
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function drawParticles(){
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(p.life, 0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function render(){
+    ctx.save();
+    if(shakeTime > 0){
+      const mag = 4;
+      ctx.translate((Math.random()-0.5)*mag, (Math.random()-0.5)*mag);
+    }
+    drawBackdrop();
+    drawOrbs();
+    drawHazards();
+    drawPlayer();
+    drawParticles();
+    ctx.restore();
+  }
+
+  function loop(now){
+    if(!running) return;
+    const dt = Math.min(40, now - lastTime);
+    lastTime = now;
+    update(dt);
+    render();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    const finalScore = Math.floor(score);
+    if(finalScore > best){
+      best = finalScore;
+      bestVal.textContent = best;
+      overlayTitle.textContent = 'New best!';
+    } else {
+      overlayTitle.textContent = 'Shattered!';
+    }
+    overlayText.textContent = `Score: ${finalScore} · Max combo ×${combo}`;
+    goBtn.textContent = 'Run again';
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    resetState();
+    overlay.classList.add('hidden');
+    running = true;
+    lastTime = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  goBtn.addEventListener('click', startGame);
+
+  // controls
+  const keys = {};
+  window.addEventListener('keydown', (e) => {
+    if(['ArrowLeft','ArrowRight','a','A','d','D'].includes(e.key)) e.preventDefault();
+    keys[e.key] = true;
+  });
+  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+  function keyLoop(){
+    if(running){
+      const step = 9;
+      if(keys['ArrowLeft'] || keys['a'] || keys['A']) player.targetX -= step;
+      if(keys['ArrowRight'] || keys['d'] || keys['D']) player.targetX += step;
+      player.targetX = Math.max(player.w/2, Math.min(W - player.w/2, player.targetX));
+    }
+    requestAnimationFrame(keyLoop);
+  }
+  keyLoop();
+
+  // pointer / touch drag
+  let dragging = false;
+  function pointerToX(e){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return (clientX - rect.left) * (W / rect.width);
+  }
+  canvas.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    player.targetX = pointerToX(e);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if(dragging) player.targetX = pointerToX(e);
+  });
+  window.addEventListener('pointerup', () => { dragging = false; });
+
+  // initial preview
+  resetState();
+  render();
+</script>
+
+</body>
+</html>
