@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Merge Drift</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap');
+  :root{
+    --bg:#faf5ee; --board:#e4d6c3; --cell:#efe3d3; --text:#5c4633; --dim:#9c8a76;
+    --t2:#f7e8d4; --t4:#f2dcbb; --t8:#f0b26b; --t16:#f0955a; --t32:#f0784a; --t64:#f0593a;
+    --t128:#e9cd6e; --t256:#e9c754; --t512:#e9c13a; --t1024:#e9bb20; --t2048:#5cc98a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:'Nunito',sans-serif;color:var(--text);}
+  .wrap{max-width:420px;margin:0 auto;padding:24px 16px 34px;text-align:center;}
+  h1{font-family:'Fredoka',sans-serif;font-weight:700;font-size:clamp(1.8rem,7vw,2.3rem);margin:0 0 2px;color:#e0813f;}
+  .tagline{margin:0 0 14px;font-size:0.88rem;color:var(--dim);}
+  .hud{display:flex;justify-content:center;gap:10px;margin-bottom:14px;}
+  .stat{background:var(--board);border-radius:10px;padding:8px 20px;min-width:80px;}
+  .stat .label{font-size:0.65rem;font-weight:800;color:var(--dim);}
+  .stat .value{font-family:'Fredoka',sans-serif;font-size:1.3rem;font-weight:700;}
+  #best-val{color:#e0813f;}
+  .stage{position:relative;display:inline-block;}
+  #board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:var(--board);padding:10px;border-radius:14px;width:320px;height:320px;}
+  .cell{background:var(--cell);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Fredoka',sans-serif;font-weight:700;font-size:1.5rem;position:relative;transition:background 0.15s ease;}
+  .cell[data-v="2"]{background:var(--t2);}
+  .cell[data-v="4"]{background:var(--t4);}
+  .cell[data-v="8"]{background:var(--t8);color:#fff;}
+  .cell[data-v="16"]{background:var(--t16);color:#fff;}
+  .cell[data-v="32"]{background:var(--t32);color:#fff;}
+  .cell[data-v="64"]{background:var(--t64);color:#fff;}
+  .cell[data-v="128"]{background:var(--t128);color:#fff;font-size:1.3rem;}
+  .cell[data-v="256"]{background:var(--t256);color:#fff;font-size:1.3rem;}
+  .cell[data-v="512"]{background:var(--t512);color:#fff;font-size:1.3rem;}
+  .cell[data-v="1024"]{background:var(--t1024);color:#fff;font-size:1.1rem;}
+  .cell[data-v="2048"]{background:var(--t2048);color:#fff;font-size:1.1rem;}
+  .cell.pop{animation:pop 0.15s ease;}
+  @keyframes pop{0%{transform:scale(0.7);}100%{transform:scale(1);}}
+  .overlay{position:absolute;inset:0;background:rgba(92,70,51,0.85);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border-radius:14px;padding:20px;}
+  .overlay.hidden{display:none;}
+  .overlay h2{font-family:'Fredoka',sans-serif;font-size:1.4rem;margin:0;}
+  .overlay p{margin:0;font-size:0.85rem;color:#f0e3d3;max-width:240px;line-height:1.4;}
+  #go-btn{font-family:'Fredoka',sans-serif;font-weight:700;font-size:1rem;color:#5c4633;background:#f0b26b;border:none;border-radius:999px;padding:11px 28px;cursor:pointer;margin-top:4px;}
+  .controls{margin-top:14px;font-size:0.8rem;color:var(--dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Merge Drift</h1>
+  <p class="tagline">Swipe or arrow-key tiles together. Same numbers merge into double — reach 2048 to win.</p>
+  <div class="hud">
+    <div class="stat"><div class="label">SCORE</div><div class="value" id="score-val">0</div></div>
+    <div class="stat"><div class="label">BEST</div><div class="value" id="best-val">0</div></div>
+  </div>
+  <div class="stage">
+    <div id="board"></div>
+    <div class="overlay hidden" id="overlay">
+      <h2 id="overlay-title">Game over</h2>
+      <p id="overlay-text"></p>
+      <button id="go-btn">Play again</button>
+    </div>
+  </div>
+  <p class="controls">Arrow keys / WASD or swipe to slide tiles</p>
+</div>
+
+<script>
+  const SIZE=4;
+  const boardEl=document.getElementById('board');
+  const scoreVal=document.getElementById('score-val'), bestVal=document.getElementById('best-val');
+  const overlay=document.getElementById('overlay'), overlayTitle=document.getElementById('overlay-title'), overlayText=document.getElementById('overlay-text'), goBtn=document.getElementById('go-btn');
+
+  let grid, score, best=0, won, gameOver;
+  const cellEls=[];
+
+  function buildCells(){
+    boardEl.innerHTML='';
+    cellEls.length=0;
+    for(let i=0;i<SIZE*SIZE;i++){
+      const c=document.createElement('div');
+      c.className='cell';
+      boardEl.appendChild(c);
+      cellEls.push(c);
+    }
+  }
+
+  function emptyGrid(){ return Array.from({length:SIZE},()=>Array(SIZE).fill(0)); }
+
+  function addRandom(){
+    const empties=[];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(grid[r][c]===0) empties.push([r,c]);
+    if(empties.length===0) return;
+    const [r,c]=empties[Math.floor(Math.random()*empties.length)];
+    grid[r][c] = Math.random()<0.9 ? 2 : 4;
+  }
+
+  function render(justAdded){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      const v=grid[r][c];
+      const el=cellEls[r*SIZE+c];
+      el.textContent = v||'';
+      if(v) el.dataset.v=v; else el.removeAttribute('data-v');
+    }
+    scoreVal.textContent=score;
+  }
+
+  function slideLine(line){
+    let vals=line.filter(v=>v!==0);
+    let merged=[];
+    let gained=0;
+    for(let i=0;i<vals.length;i++){
+      if(vals[i]===vals[i+1]){
+        const m=vals[i]*2;
+        merged.push(m);
+        gained+=m;
+        if(m===2048) won=true;
+        i++;
+      } else merged.push(vals[i]);
+    }
+    while(merged.length<SIZE) merged.push(0);
+    return {merged, gained};
+  }
+
+  function move(dir){
+    let moved=false, totalGain=0;
+    const getLine=(i, rev)=>{
+      const line=[];
+      for(let j=0;j<SIZE;j++){
+        line.push(dir==='left'||dir==='right' ? grid[i][j] : grid[j][i]);
+      }
+      return rev ? line.reverse() : line;
+    };
+    const setLine=(i, line, rev)=>{
+      const l = rev ? [...line].reverse() : line;
+      for(let j=0;j<SIZE;j++){
+        if(dir==='left'||dir==='right') grid[i][j]=l[j];
+        else grid[j][i]=l[j];
+      }
+    };
+
+    for(let i=0;i<SIZE;i++){
+      const rev = dir==='right'||dir==='down';
+      const line = getLine(i, rev);
+      const {merged, gained} = slideLine(line);
+      totalGain+=gained;
+      const before = getLine(i,false).join(',');
+      setLine(i, merged, rev);
+      const after = getLine(i,false).join(',');
+      if(before!==after) moved=true;
+    }
+
+    if(moved){
+      score+=totalGain;
+      addRandom();
+      render();
+      if(won){ showEnd(true); return; }
+      if(!hasMoves()) showEnd(false);
+    }
+  }
+
+  function hasMoves(){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      if(grid[r][c]===0) return true;
+      if(c<SIZE-1 && grid[r][c]===grid[r][c+1]) return true;
+      if(r<SIZE-1 && grid[r][c]===grid[r+1][c]) return true;
+    }
+    return false;
+  }
+
+  function showEnd(win){
+    gameOver=true;
+    if(score>best){ best=score; bestVal.textContent=best; }
+    overlayTitle.textContent = win ? 'You hit 2048!' : 'No more moves';
+    overlayText.textContent = win ? `Score: ${score} — keep going for a higher score, or restart.` : `Final score: ${score}`;
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    grid=emptyGrid(); score=0; won=false; gameOver=false;
+    addRandom(); addRandom();
+    overlay.classList.add('hidden');
+    render();
+  }
+
+  goBtn.addEventListener('click', startGame);
+
+  window.addEventListener('keydown',(e)=>{
+    if(gameOver) return;
+    const map={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'};
+    if(map[e.key]){ e.preventDefault(); move(map[e.key]); }
+  });
+
+  let touchStartX=0, touchStartY=0;
+  boardEl.addEventListener('touchstart',(e)=>{
+    touchStartX=e.touches[0].clientX; touchStartY=e.touches[0].clientY;
+  });
+  boardEl.addEventListener('touchend',(e)=>{
+    const dx=e.changedTouches[0].clientX-touchStartX;
+    const dy=e.changedTouches[0].clientY-touchStartY;
+    if(Math.abs(dx)>Math.abs(dy)){
+      if(Math.abs(dx)>30) move(dx>0?'right':'left');
+    } else {
+      if(Math.abs(dy)>30) move(dy>0?'down':'up');
+    }
+  });
+
+  buildCells();
+  startGame();
+</script>
+</body>
+</html>
