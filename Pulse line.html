@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Pulse Line</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg: #0b0e17;
+    --panel: #131829;
+    --line-track: #1e2438;
+    --hit-zone: #ffb703;
+    --note-a: #ef476f;
+    --note-b: #06d6a0;
+    --note-c: #4f8cff;
+    --text-main: #eef1fb;
+    --text-dim: #6f7794;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+  }
+
+  .wrap{
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 22px 16px 30px;
+    text-align: center;
+  }
+
+  h1{
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.7rem, 7vw, 2.2rem);
+    margin: 0 0 2px;
+    color: var(--hit-zone);
+  }
+
+  .tagline{
+    margin: 0 0 14px;
+    font-size: 0.86rem;
+    color: var(--text-dim);
+  }
+
+  .hud{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stat{
+    background: var(--panel);
+    border: 1px solid var(--line-track);
+    border-radius: 10px;
+    padding: 7px 16px;
+    min-width: 76px;
+  }
+
+  .stat .label{
+    font-size: 0.63rem;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+  }
+
+  .stat .value{
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.25rem;
+  }
+
+  #score-val{ color: var(--note-b); }
+  #combo-val{ color: var(--note-c); }
+  #best-val{ color: var(--hit-zone); }
+
+  .stage{
+    position: relative;
+    display: inline-block;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 2px solid var(--line-track);
+    background: var(--panel);
+  }
+
+  canvas{
+    display: block;
+    touch-action: none;
+  }
+
+  .lanes-ui{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 0 14px 16px;
+  }
+
+  .lane-btn{
+    border: none;
+    border-radius: 10px;
+    padding: 12px 0;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #0b0e17;
+    cursor: pointer;
+    transition: transform 0.06s ease, filter 0.1s ease;
+  }
+
+  .lane-btn:active{ transform: scale(0.94); filter: brightness(0.85); }
+
+  .lane-btn.a{ background: var(--note-a); }
+  .lane-btn.b{ background: var(--note-b); }
+  .lane-btn.c{ background: var(--note-c); }
+
+  .overlay{
+    position: absolute;
+    inset: 0;
+    background: rgba(11,14,23,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+  }
+
+  .overlay.hidden{ display: none; }
+
+  .overlay h2{
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    margin: 0;
+    color: var(--note-a);
+  }
+
+  .overlay p{
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    max-width: 260px;
+    line-height: 1.4;
+  }
+
+  #go-btn{
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #0b0e17;
+    background: var(--hit-zone);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 30px;
+    cursor: pointer;
+    margin-top: 4px;
+    box-shadow: 0 4px 0 #c98a06;
+  }
+
+  #go-btn:active{
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #c98a06;
+  }
+
+  .controls-hint{
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>PULSE LINE</h1>
+  <p class="tagline">Notes drop down three lanes. Hit the matching key right as they cross the line.</p>
+
+  <div class="hud">
+    <div class="stat">
+      <div class="label">SCORE</div>
+      <div class="value" id="score-val">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">COMBO</div>
+      <div class="value" id="combo-val">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">BEST</div>
+      <div class="value" id="best-val">0</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="380" height="380"></canvas>
+    <div class="lanes-ui">
+      <button class="lane-btn a" data-lane="0">D</button>
+      <button class="lane-btn b" data-lane="1">F</button>
+      <button class="lane-btn c" data-lane="2">J</button>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <h2 id="overlay-title">Ready to play?</h2>
+      <p id="overlay-text">Press D, F, or J (or tap the matching button) exactly when a note crosses the gold line. Perfect timing scores more and builds your combo. Miss three times and it's over. Tempo increases as you go.</p>
+      <button id="go-btn">Start</button>
+    </div>
+  </div>
+
+  <p class="controls-hint">Keys D / F / J or tap the lane buttons</p>
+</div>
+
+<script>
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const HIT_Y = H - 60;
+  const LANE_COUNT = 3;
+  const LANE_W = W / LANE_COUNT;
+  const LANE_COLORS = ['#ef476f', '#06d6a0', '#4f8cff'];
+
+  const scoreVal = document.getElementById('score-val');
+  const comboVal = document.getElementById('combo-val');
+  const bestVal = document.getElementById('best-val');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const goBtn = document.getElementById('go-btn');
+  const laneBtns = document.querySelectorAll('.lane-btn');
+
+  let notes, particles, score, combo, misses, best = 0, running, lastTime, elapsed, spawnTimer, noteSpeed, flashLane, flashTimer;
+
+  function resetState(){
+    notes = [];
+    particles = [];
+    score = 0;
+    combo = 0;
+    misses = 0;
+    elapsed = 0;
+    spawnTimer = 0;
+    noteSpeed = 2.6;
+    flashLane = -1;
+    flashTimer = 0;
+    scoreVal.textContent = 0;
+    comboVal.textContent = 0;
+  }
+
+  function spawnNote(){
+    const lane = Math.floor(Math.random()*LANE_COUNT);
+    notes.push({ lane, y: -20, hit: false, missed: false });
+  }
+
+  function spawnParticles(x,y,color){
+    for(let i=0;i<10;i++){
+      particles.push({
+        x, y,
+        vx: (Math.random()-0.5)*4,
+        vy: (Math.random()-0.5)*4 - 1,
+        life: 1,
+        color
+      });
+    }
+  }
+
+  function laneCenterX(lane){
+    return lane*LANE_W + LANE_W/2;
+  }
+
+  function hitLane(lane){
+    if(!running) return;
+    flashLane = lane; flashTimer = 150;
+
+    // find closest active note in this lane near hit line
+    let best_i = -1, bestDist = Infinity;
+    notes.forEach((n, i) => {
+      if(n.lane === lane && !n.hit && !n.missed){
+        const dist = Math.abs(n.y - HIT_Y);
+        if(dist < bestDist){ bestDist = dist; best_i = i; }
+      }
+    });
+
+    if(best_i === -1 || bestDist > 55){
+      // whiff - no note close enough
+      registerMiss(false);
+      return;
+    }
+
+    const n = notes[best_i];
+    n.hit = true;
+    const perfect = bestDist < 20;
+    combo++;
+    score += perfect ? 3 : 1;
+    scoreVal.textContent = score;
+    comboVal.textContent = combo;
+    spawnParticles(laneCenterX(lane), HIT_Y, LANE_COLORS[lane]);
+  }
+
+  function registerMiss(fromNote){
+    combo = 0;
+    comboVal.textContent = combo;
+    misses++;
+    if(misses >= 3){
+      endGame();
+    }
+  }
+
+  function update(dt){
+    elapsed += dt;
+    noteSpeed = 2.6 + elapsed/6000;
+
+    spawnTimer -= dt;
+    const interval = Math.max(420, 900 - elapsed/22);
+    if(spawnTimer <= 0){
+      spawnNote();
+      spawnTimer = interval;
+    }
+
+    for(let i = notes.length - 1; i >= 0; i--){
+      const n = notes[i];
+      if(n.hit){
+        notes.splice(i,1);
+        continue;
+      }
+      n.y += noteSpeed * (dt/16.7);
+      if(n.y > HIT_Y + 40 && !n.missed){
+        n.missed = true;
+        registerMiss(true);
+      }
+      if(n.y > H + 20){
+        notes.splice(i,1);
+      }
+    }
+
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+      if(p.life <= 0) particles.splice(i,1);
+    }
+
+    if(flashTimer > 0) flashTimer -= dt;
+  }
+
+  function drawLanes(){
+    ctx.fillStyle = '#131829';
+    ctx.fillRect(0,0,W,H);
+    for(let l=0;l<LANE_COUNT;l++){
+      ctx.strokeStyle = '#1e2438';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(l*LANE_W, 0);
+      ctx.lineTo(l*LANE_W, H);
+      ctx.stroke();
+
+      if(flashTimer > 0 && flashLane === l){
+        ctx.fillStyle = LANE_COLORS[l] + '22';
+        ctx.fillRect(l*LANE_W, 0, LANE_W, H);
+      }
+    }
+    // hit line
+    ctx.strokeStyle = '#ffb703';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, HIT_Y);
+    ctx.lineTo(W, HIT_Y);
+    ctx.stroke();
+  }
+
+  function drawNotes(){
+    notes.forEach(n => {
+      if(n.hit) return;
+      ctx.save();
+      const x = laneCenterX(n.lane);
+      ctx.fillStyle = LANE_COLORS[n.lane];
+      ctx.shadowColor = LANE_COLORS[n.lane];
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.roundRect(x - LANE_W*0.28, n.y - 10, LANE_W*0.56, 20, 6);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function drawParticles(){
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(p.life,0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function render(){
+    drawLanes();
+    drawNotes();
+    drawParticles();
+  }
+
+  function loop(now){
+    if(!running) return;
+    const dt = Math.min(40, now - lastTime);
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running = false;
+    if(score > best){
+      best = score;
+      bestVal.textContent = best;
+      overlayTitle.textContent = 'New best!';
+    } else {
+      overlayTitle.textContent = 'Off beat!';
+    }
+    overlayText.textContent = `Score: ${score} · you missed 3 notes.`;
+    goBtn.textContent = 'Try again';
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    resetState();
+    overlay.classList.add('hidden');
+    running = true;
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  goBtn.addEventListener('click', startGame);
+
+  window.addEventListener('keydown', (e) => {
+    const map = { d: 0, D: 0, f: 1, F: 1, j: 2, J: 2 };
+    if(map[e.key] !== undefined){
+      e.preventDefault();
+      hitLane(map[e.key]);
+    }
+  });
+
+  laneBtns.forEach(btn => {
+    btn.addEventListener('pointerdown', () => hitLane(parseInt(btn.dataset.lane)));
+  });
+
+  resetState();
+  render();
+</script>
+
+</body>
+</html>
