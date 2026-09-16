@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Canyon Sprint</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --sky-top: #2b1f4a;
+    --sky-mid: #6b3f5c;
+    --sky-bottom: #e8871e;
+    --canyon-far: #4b3450;
+    --canyon-near: #3a2440;
+    --ground: #8a4a2f;
+    --ground-top: #b8683f;
+    --amber: #ffb238;
+    --rust: #e0503a;
+    --text-main: #fff2e0;
+    --text-dim: #d9b8a8;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    height: 100%;
+    background: var(--canyon-near);
+    font-family: 'Work Sans', sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+  }
+
+  .wrap{
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 22px 16px 30px;
+    text-align: center;
+  }
+
+  h1{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(1.6rem, 7vw, 2.1rem);
+    margin: 0 0 2px;
+    color: var(--amber);
+    letter-spacing: 0.5px;
+  }
+
+  .tagline{
+    margin: 0 0 14px;
+    font-size: 0.88rem;
+    color: var(--text-dim);
+  }
+
+  .hud{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stat{
+    background: rgba(58,36,64,0.75);
+    border: 1px solid #6b3f5c;
+    border-radius: 10px;
+    padding: 7px 16px;
+    min-width: 76px;
+  }
+
+  .stat .label{
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+  }
+
+  .stat .value{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 1.25rem;
+  }
+
+  #score-val{ color: var(--amber); }
+  #best-val{ color: var(--rust); }
+
+  .stage{
+    position: relative;
+    display: inline-block;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid #6b3f5c;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+  }
+
+  canvas{
+    display: block;
+    touch-action: none;
+  }
+
+  .overlay{
+    position: absolute;
+    inset: 0;
+    background: rgba(30,18,40,0.86);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .overlay.hidden{ display: none; }
+
+  .overlay h2{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 1.4rem;
+    margin: 0;
+    color: var(--rust);
+  }
+
+  .overlay p{
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    max-width: 260px;
+    line-height: 1.4;
+  }
+
+  #go-btn{
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 0.95rem;
+    color: #2b1f2f;
+    background: var(--amber);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 30px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #c9862c;
+    margin-top: 4px;
+  }
+
+  #go-btn:active{
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #c9862c;
+  }
+
+  .controls-hint{
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>CANYON SPRINT</h1>
+  <p class="tagline">Tap to jump, tap again mid-air to double jump. The canyon never slows down.</p>
+
+  <div class="hud">
+    <div class="stat">
+      <div class="label">SCORE</div>
+      <div class="value" id="score-val">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">BEST</div>
+      <div class="value" id="best-val">0</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="380" height="380"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="overlay-title">Ready to sprint?</h2>
+      <p id="overlay-text">Space, tap, or click to jump. Clear rocks and gaps — chain jumps back to back with a double jump. Speed ramps up the longer you survive.</p>
+      <button id="go-btn">Start sprint</button>
+    </div>
+  </div>
+
+  <p class="controls-hint">Space / tap / click to jump · timing matters more as it speeds up</p>
+</div>
+
+<script>
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const GROUND_Y = H - 70;
+
+  const scoreVal = document.getElementById('score-val');
+  const bestVal = document.getElementById('best-val');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const goBtn = document.getElementById('go-btn');
+
+  let best = 0;
+  let running = false;
+  let rafId = null;
+  let lastTime = 0;
+
+  let runner, obstacles, particles, score, speed, spawnDist, distSinceSpawn, elapsed, groundOffset;
+
+  function resetState(){
+    runner = {
+      x: 70, y: GROUND_Y, w: 30, h: 34,
+      vy: 0, onGround: true, jumpsUsed: 0, legPhase: 0
+    };
+    obstacles = [];
+    particles = [];
+    score = 0;
+    speed = 4.2;
+    spawnDist = 260;
+    distSinceSpawn = 0;
+    elapsed = 0;
+    groundOffset = 0;
+    scoreVal.textContent = 0;
+  }
+
+  const GRAVITY = 0.62;
+  const JUMP_V = -11.5;
+  const MAX_JUMPS = 2;
+
+  function jump(){
+    if(!running) return;
+    if(runner.jumpsUsed < MAX_JUMPS){
+      runner.vy = JUMP_V * (runner.jumpsUsed === 1 ? 0.85 : 1);
+      runner.onGround = false;
+      runner.jumpsUsed++;
+      spawnParticles(runner.x, runner.y + runner.h/2, '#ffb238', 6);
+    }
+  }
+
+  function spawnParticles(x,y,color,count){
+    for(let i=0;i<count;i++){
+      particles.push({
+        x, y,
+        vx: (Math.random()-0.5)*3,
+        vy: -Math.random()*2,
+        life: 1,
+        color
+      });
+    }
+  }
+
+  function spawnObstacle(){
+    const isGap = Math.random() < 0.35;
+    if(isGap){
+      const w = 50 + Math.random()*40;
+      obstacles.push({ type: 'gap', x: W, w, h: 0 });
+    } else {
+      const tall = Math.random() < 0.4;
+      const h = tall ? 46 : 28;
+      const w = tall ? 20 : 30;
+      obstacles.push({ type: 'rock', x: W, w, h });
+    }
+  }
+
+  function update(dt){
+    elapsed += dt;
+    speed = 4.2 + elapsed/4500;
+    const dx = speed * (dt/16.7);
+    groundOffset = (groundOffset + dx) % 40;
+
+    // runner physics
+    runner.vy += GRAVITY * (dt/16.7);
+    runner.y += runner.vy * (dt/16.7);
+    if(runner.y >= GROUND_Y){
+      runner.y = GROUND_Y;
+      runner.vy = 0;
+      runner.onGround = true;
+      runner.jumpsUsed = 0;
+    }
+    runner.legPhase += dx * 0.3;
+
+    // spawn obstacles
+    distSinceSpawn += dx;
+    if(distSinceSpawn > spawnDist){
+      spawnObstacle();
+      distSinceSpawn = 0;
+      spawnDist = Math.max(140, 260 - speed*6) + Math.random()*80;
+    }
+
+    // move obstacles + collision
+    for(let i = obstacles.length - 1; i >= 0; i--){
+      const o = obstacles[i];
+      o.x -= dx;
+
+      if(o.type === 'rock'){
+        const rx = o.x, ry = GROUND_Y + runner.h - o.h;
+        const px = runner.x - runner.w/2, py = runner.y - runner.h/2;
+        const overlap = px < rx + o.w && px + runner.w > rx && py < ry + o.h && py + runner.h > ry;
+        if(overlap){
+          endGame();
+          return;
+        }
+        if(o.x + o.w < 0){
+          obstacles.splice(i,1);
+          score += 3;
+        }
+      } else {
+        // gap: fall in if runner is above it and on ground level with no air
+        const overGap = runner.x + runner.w/2 > o.x && runner.x - runner.w/2 < o.x + o.w;
+        if(overGap && runner.y >= GROUND_Y - 1 && runner.onGround){
+          endGame();
+          return;
+        }
+        if(o.x + o.w < 0){
+          obstacles.splice(i,1);
+          score += 4;
+        }
+      }
+    }
+
+    // particles
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.05;
+      if(p.life <= 0) particles.splice(i,1);
+    }
+
+    score += dt * 0.004;
+    scoreVal.textContent = Math.floor(score);
+  }
+
+  function drawBackdrop(){
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#2b1f4a');
+    grad.addColorStop(0.55, '#6b3f5c');
+    grad.addColorStop(1, '#e8871e');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+
+    // sun
+    ctx.fillStyle = 'rgba(255,178,56,0.85)';
+    ctx.beginPath();
+    ctx.arc(W*0.75, H*0.32, 34, 0, Math.PI*2);
+    ctx.fill();
+
+    // far canyon silhouette
+    ctx.fillStyle = '#4b3450';
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y);
+    for(let x=0;x<=W;x+=40){
+      const h = 30 + Math.sin((x+groundOffset*0.3)*0.03)*18;
+      ctx.lineTo(x, GROUND_Y - h);
+    }
+    ctx.lineTo(W, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawGround(){
+    ctx.fillStyle = '#8a4a2f';
+    ctx.fillRect(0, GROUND_Y + 34, W, H - GROUND_Y - 34);
+    ctx.fillStyle = '#b8683f';
+    ctx.fillRect(0, GROUND_Y + 34, W, 6);
+    // texture ticks
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 3;
+    for(let x = -groundOffset; x < W; x += 40){
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y + 44);
+      ctx.lineTo(x+16, GROUND_Y + 44);
+      ctx.stroke();
+    }
+  }
+
+  function drawObstacles(){
+    obstacles.forEach(o => {
+      if(o.type === 'rock'){
+        ctx.fillStyle = '#e0503a';
+        ctx.beginPath();
+        const rx = o.x, ry = GROUND_Y + runner.h - o.h;
+        ctx.moveTo(rx, ry + o.h);
+        ctx.lineTo(rx + o.w*0.2, ry);
+        ctx.lineTo(rx + o.w*0.8, ry);
+        ctx.lineTo(rx + o.w, ry + o.h);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#2b1f2f';
+        ctx.fillRect(o.x, GROUND_Y + 34, o.w, H - GROUND_Y - 34);
+      }
+    });
+  }
+
+  function drawRunner(){
+    ctx.save();
+    ctx.translate(runner.x, runner.y - runner.h/2);
+    ctx.fillStyle = '#ffb238';
+    ctx.beginPath();
+    ctx.roundRect(-runner.w/2, 0, runner.w, runner.h*0.7, 6);
+    ctx.fill();
+    // legs
+    const legSwing = runner.onGround ? Math.sin(runner.legPhase) * 8 : 4;
+    ctx.strokeStyle = '#e0503a';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-6, runner.h*0.65);
+    ctx.lineTo(-6 + legSwing*0.4, runner.h*0.65 + 10);
+    ctx.moveTo(6, runner.h*0.65);
+    ctx.lineTo(6 - legSwing*0.4, runner.h*0.65 + 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(p.life,0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  function render(){
+    drawBackdrop();
+    drawGround();
+    drawObstacles();
+    drawRunner();
+    drawParticles();
+  }
+
+  function loop(now){
+    if(!running) return;
+    const dt = Math.min(40, now - lastTime);
+    lastTime = now;
+    update(dt);
+    render();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    const finalScore = Math.floor(score);
+    if(finalScore > best){
+      best = finalScore;
+      bestVal.textContent = best;
+      overlayTitle.textContent = 'New best!';
+    } else {
+      overlayTitle.textContent = 'Down you go!';
+    }
+    overlayText.textContent = `Score: ${finalScore}`;
+    goBtn.textContent = 'Sprint again';
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    resetState();
+    overlay.classList.add('hidden');
+    running = true;
+    lastTime = performance.now();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  goBtn.addEventListener('click', startGame);
+
+  window.addEventListener('keydown', (e) => {
+    if(e.key === ' '){
+      e.preventDefault();
+      jump();
+    }
+  });
+  canvas.addEventListener('pointerdown', jump);
+
+  // initial preview
+  resetState();
+  render();
+</script>
+
+</body>
+</html>
