@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Colorburst</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap');
+
+  :root{
+    --bg: #0e1420;
+    --panel: #161f30;
+    --line: #263248;
+    --c-red: #ef476f;
+    --c-blue: #4f8cff;
+    --c-green: #06d6a0;
+    --c-yellow: #ffd166;
+    --text-main: #eef2f8;
+    --text-dim: #7f8ca3;
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    font-family: 'Sora', sans-serif;
+    color: var(--text-main);
+  }
+
+  .wrap{
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 24px 16px 34px;
+    text-align: center;
+  }
+
+  h1{
+    font-weight: 800;
+    font-size: clamp(1.7rem, 7vw, 2.2rem);
+    margin: 0 0 2px;
+  }
+
+  h1 span{ color: var(--c-green); }
+
+  .tagline{
+    margin: 0 0 16px;
+    font-size: 0.88rem;
+    color: var(--text-dim);
+  }
+
+  .hud{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .stat{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px 18px;
+    min-width: 78px;
+  }
+
+  .stat .label{
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+  }
+
+  .stat .value{
+    font-weight: 800;
+    font-size: 1.3rem;
+  }
+
+  #score-val{ color: var(--c-green); }
+  #lives-val{ color: var(--c-red); }
+  #best-val{ color: var(--c-yellow); }
+
+  .stage{
+    position: relative;
+    display: inline-block;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 2px solid var(--line);
+    background: var(--panel);
+  }
+
+  .prompt-bar{
+    padding: 16px 0 10px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+
+  #prompt-word{
+    font-size: 1.5rem;
+    font-weight: 800;
+    padding: 2px 0;
+  }
+
+  .grid{
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 6px 18px 20px;
+  }
+
+  .swatch{
+    aspect-ratio: 1.6/1;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    box-shadow: inset 0 -6px 0 rgba(0,0,0,0.2);
+    transition: transform 0.06s ease;
+  }
+
+  .swatch:active{ transform: scale(0.96); }
+
+  .swatch.red{ background: var(--c-red); }
+  .swatch.blue{ background: var(--c-blue); }
+  .swatch.green{ background: var(--c-green); }
+  .swatch.yellow{ background: var(--c-yellow); }
+
+  .flash-correct{ outline: 4px solid #fff; }
+  .flash-wrong{ animation: shakeflash 0.28s; }
+
+  @keyframes shakeflash{
+    0%,100%{ transform: translateX(0); }
+    25%{ transform: translateX(-6px); }
+    75%{ transform: translateX(6px); }
+  }
+
+  .overlay{
+    position: absolute;
+    inset: 0;
+    background: rgba(14,20,32,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+  }
+
+  .overlay.hidden{ display: none; }
+
+  .overlay h2{
+    font-size: 1.4rem;
+    margin: 0;
+    color: var(--c-red);
+  }
+
+  .overlay p{
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    max-width: 260px;
+    line-height: 1.4;
+  }
+
+  #go-btn{
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: #0e1420;
+    background: var(--c-green);
+    border: none;
+    border-radius: 999px;
+    padding: 11px 30px;
+    cursor: pointer;
+    margin-top: 4px;
+    box-shadow: 0 4px 0 #049370;
+  }
+
+  #go-btn:active{
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 #049370;
+  }
+
+  .controls-hint{
+    margin-top: 12px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Color<span>burst</span></h1>
+  <p class="tagline">Read fast, tap faster. The word and the color rarely agree — trust your eyes, not the label.</p>
+
+  <div class="hud">
+    <div class="stat">
+      <div class="label">SCORE</div>
+      <div class="value" id="score-val">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">LIVES</div>
+      <div class="value" id="lives-val">3</div>
+    </div>
+    <div class="stat">
+      <div class="label">BEST</div>
+      <div class="value" id="best-val">0</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="prompt-bar">
+      Tap the swatch matching the <u>ink color</u> of:
+      <div id="prompt-word">RED</div>
+    </div>
+    <div class="grid" id="grid">
+      <button class="swatch red" data-color="red"></button>
+      <button class="swatch blue" data-color="blue"></button>
+      <button class="swatch green" data-color="green"></button>
+      <button class="swatch yellow" data-color="yellow"></button>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <h2 id="overlay-title">Ready?</h2>
+      <p id="overlay-text">A color word appears, printed in a color. Tap the swatch matching its INK color — not the word it spells. You get faster and trickier as your streak grows. Three misses ends it.</p>
+      <button id="go-btn">Start</button>
+    </div>
+  </div>
+
+  <p class="controls-hint">Tap the correct swatch before the timer bar runs out</p>
+</div>
+
+<script>
+  const COLORS = ['red','blue','green','yellow'];
+  const HEX = { red: '#ef476f', blue: '#4f8cff', green: '#06d6a0', yellow: '#ffd166' };
+
+  const promptWord = document.getElementById('prompt-word');
+  const scoreVal = document.getElementById('score-val');
+  const livesVal = document.getElementById('lives-val');
+  const bestVal = document.getElementById('best-val');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayText = document.getElementById('overlay-text');
+  const goBtn = document.getElementById('go-btn');
+  const swatches = document.querySelectorAll('.swatch');
+
+  let score = 0, lives = 3, best = 0, running = false;
+  let currentInk = 'red';
+  let roundTimer = null;
+  let timeLimit = 1800;
+
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  function newRound(){
+    clearTimeout(roundTimer);
+    const word = pick(COLORS);
+    currentInk = pick(COLORS);
+    promptWord.textContent = word.toUpperCase();
+    promptWord.style.color = HEX[currentInk];
+
+    timeLimit = Math.max(700, 1800 - score*22);
+    roundTimer = setTimeout(() => {
+      handleMiss();
+    }, timeLimit);
+  }
+
+  function handleCorrect(el){
+    score++;
+    scoreVal.textContent = score;
+    el.classList.add('flash-correct');
+    setTimeout(() => el.classList.remove('flash-correct'), 150);
+    newRound();
+  }
+
+  function handleMiss(el){
+    lives--;
+    livesVal.textContent = lives;
+    if(el){
+      el.classList.add('flash-wrong');
+      setTimeout(() => el.classList.remove('flash-wrong'), 280);
+    }
+    if(lives <= 0){
+      endGame();
+    } else {
+      newRound();
+    }
+  }
+
+  swatches.forEach(sw => {
+    sw.addEventListener('click', () => {
+      if(!running) return;
+      if(sw.dataset.color === currentInk){
+        handleCorrect(sw);
+      } else {
+        handleMiss(sw);
+      }
+    });
+  });
+
+  function endGame(){
+    running = false;
+    clearTimeout(roundTimer);
+    if(score > best){
+      best = score;
+      bestVal.textContent = best;
+      overlayTitle.textContent = 'New best!';
+    } else {
+      overlayTitle.textContent = 'Out of lives!';
+    }
+    overlayText.textContent = `You scored ${score} before your reflexes gave out.`;
+    goBtn.textContent = 'Try again';
+    overlay.classList.remove('hidden');
+  }
+
+  function startGame(){
+    score = 0; lives = 3;
+    scoreVal.textContent = 0;
+    livesVal.textContent = 3;
+    running = true;
+    overlay.classList.add('hidden');
+    newRound();
+  }
+
+  goBtn.addEventListener('click', startGame);
+</script>
+
+</body>
+</html>
